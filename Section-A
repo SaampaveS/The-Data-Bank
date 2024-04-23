@@ -1,0 +1,66 @@
+-- 1) number of unique nodes--
+select count (distinct node_id)
+from customer_nodes
+
+-- 2) number of nodes per region--
+select REGION_NAME
+    , count (distinct CN.node_id)
+from customer_nodes CN
+inner join regions R
+    on CN.region_id = R.REGION_ID
+group by region_name
+
+-- 3) How many customers are allocated to each region--
+select R.region_name
+    ,count(distinct CT.customer_id)
+from customer_nodes CN
+inner join regions R
+    on CN.region_id = R.REGION_ID
+inner join customer_transactions CT
+    on CN.customer_id = CT.customer_id
+group by region_name
+
+-- 3) How many customers are allocated to each region--
+select R.region_name
+    ,count(distinct CN.customer_id)
+from customer_nodes CN
+inner join regions R
+    on CN.region_id = R.REGION_ID
+group by region_name
+
+--4) How many days on average are customers relocated to a different node --
+with CTE as 
+(
+select customer_id
+    ,sum(datediff('day',start_date,end_date)) as number_of_days
+    , node_id
+from customer_nodes CN
+where end_date <> '9999-12-31'
+group by customer_id
+        ,node_id
+
+    )
+select round(avg(CTE.number_of_days),0)
+from CTE
+
+--What is the median, 80th and 95th percentile for this same reallocation days metric for each region?--
+with CTE as
+(
+select CN.customer_id
+    , R.region_name
+    ,CN.node_id
+    ,sum(datediff('day',CN.start_date, CN.end_date)) as number_of_days
+from customer_nodes CN
+inner join regions R
+    on R.region_id =CN.region_id
+where end_date <> '9999-12-31'
+group by CN.customer_id
+    ,R.region_name
+    ,CN.node_id
+)
+select CTE.region_name
+    ,median(number_of_days) as median
+    ,percentile_cont(0.8) within group (order by number_of_days) as eightieth_percentile
+    ,percentile_cont(0.95) within group (order by number_of_days)as ninety_fifth_percentile
+from CTE
+group by region_name
